@@ -1,0 +1,221 @@
+import { useState, useEffect, useRef } from "react";
+
+/* =====================================================
+   共通：位相回転円（位相のみ）
+===================================================== */
+function PhaseCircle({ phase, label }) {
+  const cx = 460;
+  const cy = 80;
+  const r = 35;
+  const x = cx + r * Math.cos(phase);
+  const y = cy - r * Math.sin(phase);
+  return (
+    <svg width="520" height="160">
+      <text x="20" y="24">{label}</text>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#666" />
+      <line x1={cx} y1={cy} x2={x} y2={y} stroke="#0066cc" strokeWidth={3} />
+      <circle cx={x} cy={y} r={4} fill="#cc0000" />
+      <text x={cx - 22} y={cy + r + 18} fontSize={12}>位相 φ</text>
+    </svg>
+  );
+}
+
+// =====================================================
+// 音圧レベル関連
+// =====================================================
+
+// 基準音圧（0 dB SPL）
+const P0 = 2e-5; // 20 μPa
+
+function dbToPa(db) {
+  return P0 * Math.pow(10, db / 20);
+}
+
+/* =====================================================
+   dB操作部（100 dB まで）
+===================================================== */
+function DbControl({ db, setDb }) {
+  const guides = [0, 20, 40, 60, 80, 100];
+
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div style={{ marginBottom: 12 }}>
+        音圧レベル Lp =
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={db}
+          onChange={e => setDb(Number(e.target.value))}
+          style={{ width: 360, margin: "0 8px" }}
+        />
+        <b>{db} dB</b>
+      </div>
+
+      {/* バー */}
+      <div style={{ width: 360, margin: "0 auto", marginBottom: 6 }}>
+        <div style={{ height: 12, background: "#eee" }}>
+          <div style={{ height: "100%", width: `${db}%`, background: "#66c" }} />
+        </div>
+      </div>
+
+      {/* バー下の補助線＋数値（μPa 主表示 / Pa 補助表示） */}
+      <div
+        style={{
+          width: 360,
+          margin: "18px auto 0",
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 11,
+          color: "#555",
+          textAlign: "center"
+        }}
+      >
+        {guides.map(d => {
+          const pa = dbToPa(d);
+          const muPa = Math.round(pa * 1e6);
+          return (
+            <div key={d} style={{ width: 72, lineHeight: 1.2 }}>
+              <div style={{ borderLeft: "1px solid #999", height: 8, margin: "0 auto 4px" }} />
+              <div>{d} dB</div>
+
+
+              {/* μPa：主表示（青） */}
+              <div style={{ fontWeight: 500, color: "#0066cc" }}>
+                {muPa.toLocaleString()} μPa
+              </div>
+
+
+              {/* Pa：補助表示（グレー、ASCII Pa 固定） */}
+              <div style={{ fontSize: 10, color: "#555" }}>
+                {(
+                  d === 0   ? pa.toFixed(5) :
+                  d === 20  ? pa.toFixed(4) :
+                  d === 40  ? pa.toFixed(3) :
+                  d === 60  ? pa.toFixed(2) :
+                  d === 80  ? pa.toFixed(1) :
+                              pa.toFixed(0)
+                )}{" "}Pa
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================
+   位相と進行波（最終・簡潔表示版）
+===================================================== */
+function PhaseWave() {
+  const [freq, setFreq] = useState(0.5);
+  const [db, setDb] = useState(40);
+  const [playing, setPlaying] = useState(true);
+  const phaseRef = useRef(0);
+  const [, forceUpdate] = useState(0);
+
+  const omega = 2 * Math.PI * freq;
+
+  useEffect(() => {
+    if (!playing) return;
+    let last = performance.now();
+    let id;
+    const speed = 0.6;
+    const tick = (now) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      phaseRef.current = (phaseRef.current + omega * dt * speed) % (2 * Math.PI);
+      forceUpdate(v => v + 1);
+      id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [omega, playing]);
+
+  const phase = phaseRef.current;
+  const muPa = Math.round(dbToPa(db) * 1e6);
+
+  const AMP_MIN = 2;
+  const AMP_MAX = 90;
+  const ampVis = AMP_MIN + (db / 100) * (AMP_MAX - AMP_MIN);
+
+  const k = 0.15 * freq;
+  const wave = [];
+  for (let x = 0; x <= 300; x += 2) {
+    wave.push(`${20 + x},${150 - ampVis * Math.sin(phase + k * x)}`);
+  }
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <h2>位相と進行波（0–100 dB SPL）</h2>
+      <PhaseCircle phase={phase} label="進行波の位相 φ" />
+
+      <svg width={520} height={240}>
+        <polyline points={wave.join(" ")} fill="none" stroke="green" strokeWidth={2} />
+      </svg>
+
+      <div style={{ marginTop: 8 }}>
+        周波数 f =
+        <input
+          type="range"
+          min={0.1}
+          max={1.0}
+          step={0.1}
+          value={freq}
+          onChange={e => setFreq(Number(e.target.value))}
+          style={{ width: 200, margin: "0 8px" }}
+        />
+        <b>{freq.toFixed(1)} Hz</b>
+      </div>
+
+      <DbControl db={db} setDb={setDb} />
+
+      <div style={{ marginTop: 18 }}>
+        <b>音圧（物理量・単位：μPa）</b><br />
+        {muPa.toLocaleString()} μPa
+        <span style={{ fontSize: 12, color: "#555" }}>
+          （= {dbToPa(db).toFixed(5)} Pa, {db} dB）
+        </span>
+      </div>
+
+      <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>
+        ※ 0 dB SPL = 20 μPa（人がかろうじて聞こえる音）<br />
+        ※ +20 dB ごとに音圧は 10 倍になります
+      </div>
+
+      <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>
+        <b>日常音との対応例：</b><br />
+        ・20 μPa（0 dB）…… 人の可聴下限<br />
+        ・200 μPa（20 dB）…… 静かな部屋<br />
+        ・2,000 μPa（40 dB）…… 図書館<br />
+        ・20,000 μPa（60 dB）…… 普通の会話<br />
+        ・200,000 μPa（80 dB）…… 騒がしい場所<br />
+        ・2,000,000 μPa（100 dB）…… 非常に大きい音
+      </div>
+
+      <button onClick={() => setPlaying(p => !p)} style={{ marginTop: 12 }}>
+        {playing ? "停止" : "再生"}
+      </button>
+    </div>
+  );
+}
+
+/* =====================================================
+   メイン
+===================================================== */
+export default function App() {
+  return (
+    <div style={{ fontFamily: "sans-serif" }}>
+      <PhaseWave />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+</script>
+</body>
+</html>
+``
