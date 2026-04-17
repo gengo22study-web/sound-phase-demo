@@ -5,20 +5,20 @@
   <title>位相と進行波の可視化</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+  <!-- React本体 -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-<!-- React 本体 -->
-<script src="https://unpkg.com/react@18/umdtion.min.js</script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-<!-- JSX をそのまま書くため -->
-<script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-
+  <!-- JSXを使うため -->
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
 </head>
 
 <body>
-<div id="root"></div>
+  <div id="root"></div>
 
 <script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
 /* =====================================================
    共通：位相回転円（位相のみ）
 ===================================================== */
@@ -28,7 +28,6 @@ function PhaseCircle({ phase, label }) {
   const r = 35;
   const x = cx + r * Math.cos(phase);
   const y = cy - r * Math.sin(phase);
-
   return (
     <svg width="520" height="160">
       <text x="20" y="24">{label}</text>
@@ -45,29 +44,26 @@ function PhaseCircle({ phase, label }) {
 // 音圧レベル関連
 // =====================================================
 const P0 = 2e-5; // 20 μPa
-
 function dbToPa(db) {
   return P0 * Math.pow(10, db / 20);
 }
 
 /* =====================================================
-   進行波（最終・公開用）
+   位相と進行波（最終・簡潔表示版）
 ===================================================== */
 function PhaseWave() {
-  const [freq, setFreq] = React.useState(0.5);
-  const [db, setDb] = React.useState(40);
-  const [playing, setPlaying] = React.useState(true);
-
-  const phaseRef = React.useRef(0);
-  const [, forceUpdate] = React.useState(0);
+  const [freq, setFreq] = useState(0.5);
+  const [db, setDb] = useState(40);
+  const [playing, setPlaying] = useState(true);
+  const phaseRef = useRef(0);
+  const [, forceUpdate] = useState(0);
 
   const omega = 2 * Math.PI * freq;
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!playing) return;
     let last = performance.now();
     let id;
-
     const tick = (now) => {
       const dt = (now - last) / 1000;
       last = now;
@@ -76,7 +72,6 @@ function PhaseWave() {
       forceUpdate(v => v + 1);
       id = requestAnimationFrame(tick);
     };
-
     id = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(id);
   }, [omega, playing]);
@@ -101,12 +96,8 @@ function PhaseWave() {
       <PhaseCircle phase={phase} label="進行波の位相 φ" />
 
       <svg width="520" height="240">
-        <polyline
-          points={wave.join(" ")}
-          fill="none"
-          stroke="green"
-          strokeWidth="2"
-        />
+        <polyline points={wave.join(" ")}
+                  fill="none" stroke="green" strokeWidth="2" />
       </svg>
 
       <div style={{ marginTop: 8 }}>
@@ -129,7 +120,6 @@ function PhaseWave() {
           type="range"
           min="0"
           max="100"
-          step="1"
           value={db}
           onChange={e => setDb(Number(e.target.value))}
           style={{ width: 280, margin: "0 8px" }}
@@ -143,27 +133,17 @@ function PhaseWave() {
           {muPa.toLocaleString()} μPa
         </span>
         <span style={{ fontSize: 12, color: "#555", marginLeft: 6 }}>
-          （= {dbToPa(db).toFixed(5)}{" "}
-          <span style={{ fontFamily: "monospace" }}>Pa</span>）
+          （= {dbToPa(db).toFixed(5)} <span style={{ fontFamily: "monospace" }}>Pa</span>）
         </span>
       </div>
 
-      <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>
-        ※ 0 dB SPL = 20 μPa（人の可聴下限）<br />
-        ※ +20 dB ごとに音圧は 10 倍
-      </div>
-
-      <button onClick={() => setPlaying(p => !p)}
-              style={{ marginTop: 12 }}>
+      <button onClick={() => setPlaying(p => !p)} style={{ marginTop: 12 }}>
         {playing ? "停止" : "再生"}
       </button>
     </div>
   );
 }
 
-// =====================================================
-// マウント
-// =====================================================
 ReactDOM.createRoot(
   document.getElementById("root")
 ).render(<PhaseWave />);
