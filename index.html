@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>進行波の可視化</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- React & ReactDOM -->
+  <!-- React 本体 -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <!-- JSX を使うため -->
+
+  <!-- JSX をそのまま書くため（学習用・小規模用途OK） -->
   <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
 </head>
 
@@ -16,11 +17,118 @@
   <div id="root"></div>
 
   <script type="text/babel">
+    /* ===============================
+       定数・変換
+    =============================== */
+    const P0 = 2e-5; // 20 μPa
+
+    function dbToPa(db) {
+      return P0 * Math.pow(10, db / 20);
+    }
+
+    /* ===============================
+       位相回転円（進行波のみ）
+    =============================== */
+    function PhaseCircle({ phase }) {
+      const cx = 260;
+      const cy = 80;
+      const r = 35;
+      const x = cx + r * Math.cos(phase);
+      const y = cy - r * Math.sin(phase);
+
+      return (
+        <svg width="320" height="160">
+          <text x="20" y="24">進行波の位相 φ</text>
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#666" />
+          <line
+            x1={cx}
+            y1={cy}
+            x2={x}
+            y2={y}
+            stroke="#0066cc"
+            strokeWidth="3"
+          />
+          <circle cx={x} cy={y} r="4" fill="#cc0000" />
+        </svg>
+      );
+    }
+
+    /* ===============================
+       メイン：進行波
+    =============================== */
     function App() {
+      const [db, setDb] = React.useState(40);
+      const [phase, setPhase] = React.useState(0);
+      const [playing, setPlaying] = React.useState(true);
+
+      React.useEffect(() => {
+        if (!playing) return;
+        let id;
+        const tick = () => {
+          setPhase(p => (p + 0.05) % (2 * Math.PI));
+          id = requestAnimationFrame(tick);
+        };
+        id = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(id);
+      }, [playing]);
+
+      // 見た目の振幅（dBに応じて）
+      const amp = 5 + (db / 100) * 75;
+
+      const pts = [];
+      for (let x = 0; x <= 300; x += 2) {
+        pts.push(`${20 + x},${140 - amp * Math.sin(phase + x * 0.05)}`);
+      }
+
+      const muPa = Math.round(dbToPa(db) * 1e6);
+
       return (
         <div style={{ textAlign: "center", fontFamily: "sans-serif" }}>
-          <h2>Hello GitHub Pages 👋</h2>
-          <p>index.html が正しく動いています。</p>
+          <h2>進行波の可視化（0–100 dB SPL）</h2>
+
+          <svg width="360" height="220">
+            <polyline
+              points={pts.join(" ")}
+              fill="none"
+              stroke="green"
+              strokeWidth="2"
+            />
+          </svg>
+
+          <PhaseCircle phase={phase} />
+
+          <div style={{ marginTop: 12 }}>
+            音圧レベル Lp =
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={db}
+              onChange={e => setDb(Number(e.target.value))}
+              style={{ width: 280, margin: "0 8px" }}
+            />
+            <b>{db} dB</b>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <b>音圧（物理量・単位：μPa）</b><br />
+            <span style={{ color: "#0066cc", fontWeight: 500 }}>
+              {muPa.toLocaleString()} μPa
+            </span>
+            <span style={{ fontSize: 12, color: "#555", marginLeft: 6 }}>
+              （= {dbToPa(db).toFixed(5)}{" "}
+              <span style={{ fontFamily: "monospace" }}>Pa</span>）
+            </span>
+          </div>
+
+          <button onClick={() => setPlaying(p => !p)} style={{ marginTop: 12 }}>
+            {playing ? "停止" : "再生"}
+          </button>
+
+          <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>
+            ※ 0 dB SPL = 20 μPa　
+            ※ +20 dB ごとに音圧は10倍
+          </div>
         </div>
       );
     }
